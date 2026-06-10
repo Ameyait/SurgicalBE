@@ -346,7 +346,23 @@ class ProductService:
                 status_code=404,
                 detail="Product not found"
             )
+        approved_reviews = [
+            review
+            for review in product.reviews
+            if review.status.value == "approved"
+        ]
 
+        review_count = len(approved_reviews)
+
+        rating = (
+            round(
+                sum(review.rating for review in approved_reviews)
+                / review_count,
+                2
+            )
+    if review_count > 0
+    else 0
+)
         return {
             "success": True,
             "status_code": 200,
@@ -407,8 +423,8 @@ class ProductService:
                 "hsn_code":
                 product.hsn_code,
 
-                "rating": 0,
-                "review_count": 0,
+                "rating": rating,
+                "review_count": review_count,
 
                 "is_featured":
                 product.is_featured,

@@ -181,3 +181,50 @@ class AdminReviewService:
             "status_code": 200,
             "data": stats
         }
+
+    @staticmethod
+    async def get_review(
+        db,
+        review_id
+    ):
+        review = await ReviewRepository.get_by_id(
+            db,
+            review_id
+        )
+
+        if not review:
+            raise HTTPException(
+                status_code=404,
+                detail="Review not found"
+            )
+
+        return {
+            "success": True,
+            "status_code": 200,
+            "data": {
+                "id": str(review.id),
+
+                "product_id": str(review.product.id),
+                "product_name": review.product.name,
+
+                "user_id": str(review.user.id),
+                "user_name": review.user.full_name,
+
+                "rating": review.rating,
+                "review_text": review.review_text,
+
+                "image_url": review.image_url,
+
+                "verified_purchase":
+                    review.is_verified_purchase,
+
+                "status":
+                    review.status.value,
+
+                "admin_note":
+                    review.admin_note,
+
+                "created_at":
+                    review.created_at
+            }
+        }

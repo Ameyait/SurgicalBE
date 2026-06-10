@@ -1,3 +1,4 @@
+from itertools import product
 from uuid import UUID
 
 from fastapi import HTTPException
@@ -153,8 +154,20 @@ class ProductService:
         approved_reviews = [
             review
             for review in product.reviews
-            if review.status.value == "approved"
+            if review.status.value.lower() == "approved"
         ]
+
+        review_count = len(approved_reviews)
+
+        rating = (
+            round(
+                sum(review.rating for review in approved_reviews)
+                / review_count,
+                2
+            )
+            if review_count > 0
+            else 0
+        )
 
         return {
             "success": True,
@@ -164,14 +177,21 @@ class ProductService:
                 "id": str(product.id),
 
                 "category": {
-                    "id": str(product.category.id)
-                    if product.category else None,
-
-                    "name": product.category.name
-                    if product.category else None,
-
-                    "slug": product.category.slug
-                    if product.category else None
+                    "id": (
+                        str(product.category.id)
+                        if product.category
+                        else None
+                    ),
+                    "name": (
+                        product.category.name
+                        if product.category
+                        else None
+                    ),
+                    "slug": (
+                        product.category.slug
+                        if product.category
+                        else None
+                    )
                 },
 
                 "name": product.name,
@@ -196,8 +216,8 @@ class ProductService:
 
                 "status": product.status.value,
 
-                "rating": str(product.rating),
-                "review_count": product.review_count,
+                "rating": rating,
+                "review_count": review_count,
 
                 "is_featured": product.is_featured,
                 "is_bestseller": product.is_bestseller,
@@ -232,9 +252,7 @@ class ProductService:
                         },
 
                         "rating": review.rating,
-
                         "review_text": review.review_text,
-
                         "image_url": review.image_url,
 
                         "is_verified_purchase":

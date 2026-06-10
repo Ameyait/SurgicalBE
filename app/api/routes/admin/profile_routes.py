@@ -7,17 +7,17 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.database import get_db
 from app.core.dependencies import get_current_user
 
-from app.schemas.customer.user_schema import (
+from app.schemas.admin.profile_schema import (
     ProfileResponse,
     UpdateProfileRequest
 )
 
-from app.services.customer.profile_service import (
+from app.services.admin.profile_service import (
     ProfileService
 )
 
 router = APIRouter(
-    prefix="/customer/profile",
+    prefix="/admin/profile",
     tags=["Profile"]
 )
 
