@@ -1,4 +1,7 @@
-from fastapi import HTTPException
+from fastapi import (
+    HTTPException,
+    status
+)
 
 from app.models.models import (
     ReviewStatus
@@ -8,20 +11,39 @@ from app.repositories.review_repository import (
     ReviewRepository
 )
 
+from app.utils.exception_handler import (
+    handle_service_exceptions
+)
+
 
 class AdminReviewService:
 
     @staticmethod
+    @handle_service_exceptions(
+        "fetching reviews"
+    )
     async def get_reviews(
         db,
-        status=None,
+        status_filter=None,
         page: int = 1,
         page_size: int = 20
     ):
 
+        if page < 1:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Page number must be greater than 0"
+            )
+
+        if page_size < 1:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Page size must be greater than 0"
+            )
+
         reviews = await ReviewRepository.get_all_reviews(
             db=db,
-            status=status
+            status=status_filter
         )
 
         start = (page - 1) * page_size
@@ -72,121 +94,14 @@ class AdminReviewService:
         }
 
     @staticmethod
-    async def approve_review(
-        db,
-        review_id,
-        admin_note
-    ):
-
-        review = await ReviewRepository.get_by_id(
-            db,
-            review_id
-        )
-
-        if not review:
-            raise HTTPException(
-                status_code=404,
-                detail="Review not found"
-            )
-
-        review.status = ReviewStatus.APPROVED
-        review.admin_note = admin_note
-
-        await ReviewRepository.save(
-            db,
-            review
-        )
-
-        return {
-            "success": True,
-            "status_code": 200,
-            "message": "Review approved successfully"
-        }
-
-    @staticmethod
-    async def reject_review(
-        db,
-        review_id,
-        admin_note
-    ):
-
-        review = await ReviewRepository.get_by_id(
-            db,
-            review_id
-        )
-
-        if not review:
-            raise HTTPException(
-                status_code=404,
-                detail="Review not found"
-            )
-
-        review.status = ReviewStatus.REJECTED
-        review.admin_note = admin_note
-
-        await ReviewRepository.save(
-            db,
-            review
-        )
-
-        return {
-            "success": True,
-            "status_code": 200,
-            "message": "Review rejected successfully"
-        }
-
-    @staticmethod
-    async def flag_review(
-        db,
-        review_id,
-        admin_note
-    ):
-
-        review = await ReviewRepository.get_by_id(
-            db,
-            review_id
-        )
-
-        if not review:
-            raise HTTPException(
-                status_code=404,
-                detail="Review not found"
-            )
-
-        review.status = ReviewStatus.FLAGGED
-        review.admin_note = admin_note
-
-        await ReviewRepository.save(
-            db,
-            review
-        )
-
-        return {
-            "success": True,
-            "status_code": 200,
-            "message": "Review flagged successfully"
-        }
-
-    @staticmethod
-    async def dashboard(
-        db
-    ):
-
-        stats = await ReviewRepository.get_dashboard_stats(
-            db
-        )
-
-        return {
-            "success": True,
-            "status_code": 200,
-            "data": stats
-        }
-
-    @staticmethod
+    @handle_service_exceptions(
+        "fetching review"
+    )
     async def get_review(
         db,
         review_id
     ):
+
         review = await ReviewRepository.get_by_id(
             db,
             review_id
@@ -194,7 +109,7 @@ class AdminReviewService:
 
         if not review:
             raise HTTPException(
-                status_code=404,
+                status_code=status.HTTP_404_NOT_FOUND,
                 detail="Review not found"
             )
 
@@ -227,4 +142,127 @@ class AdminReviewService:
                 "created_at":
                     review.created_at
             }
+        }
+
+    @staticmethod
+    @handle_service_exceptions(
+        "approving review"
+    )
+    async def approve_review(
+        db,
+        review_id,
+        admin_note
+    ):
+
+        review = await ReviewRepository.get_by_id(
+            db,
+            review_id
+        )
+
+        if not review:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Review not found"
+            )
+
+        review.status = ReviewStatus.APPROVED
+        review.admin_note = admin_note
+
+        await ReviewRepository.save(
+            db,
+            review
+        )
+
+        return {
+            "success": True,
+            "status_code": 200,
+            "message": "Review approved successfully"
+        }
+
+    @staticmethod
+    @handle_service_exceptions(
+        "rejecting review"
+    )
+    async def reject_review(
+        db,
+        review_id,
+        admin_note
+    ):
+
+        review = await ReviewRepository.get_by_id(
+            db,
+            review_id
+        )
+
+        if not review:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Review not found"
+            )
+
+        review.status = ReviewStatus.REJECTED
+        review.admin_note = admin_note
+
+        await ReviewRepository.save(
+            db,
+            review
+        )
+
+        return {
+            "success": True,
+            "status_code": 200,
+            "message": "Review rejected successfully"
+        }
+
+    @staticmethod
+    @handle_service_exceptions(
+        "flagging review"
+    )
+    async def flag_review(
+        db,
+        review_id,
+        admin_note
+    ):
+
+        review = await ReviewRepository.get_by_id(
+            db,
+            review_id
+        )
+
+        if not review:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Review not found"
+            )
+
+        review.status = ReviewStatus.FLAGGED
+        review.admin_note = admin_note
+
+        await ReviewRepository.save(
+            db,
+            review
+        )
+
+        return {
+            "success": True,
+            "status_code": 200,
+            "message": "Review flagged successfully"
+        }
+
+    @staticmethod
+    @handle_service_exceptions(
+        "fetching review dashboard"
+    )
+    async def dashboard(
+        db
+    ):
+
+        stats = await ReviewRepository.get_dashboard_stats(
+            db
+        )
+
+        return {
+            "success": True,
+            "status_code": 200,
+            "data": stats
         }

@@ -1,17 +1,41 @@
+from fastapi import (
+    HTTPException,
+    status
+)
+
 from app.repositories.user_repository import (
     UserRepository
+)
+
+from app.utils.exception_handler import (
+    handle_service_exceptions
 )
 
 
 class UserService:
 
     @staticmethod
+    @handle_service_exceptions(
+        "fetching customers"
+    )
     async def get_customers(
         db,
         page,
         page_size,
         search=None
     ):
+
+        if page < 1:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Page number must be greater than 0"
+            )
+
+        if page_size < 1:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Page size must be greater than 0"
+            )
 
         customers, total = (
             await UserRepository.get_customers(
@@ -51,13 +75,13 @@ class UserService:
 
             if total_spent >= 30000:
                 vip_count += 1
-                status = "vip"
+                customer_status = "vip"
 
             elif orders_count >= 5:
-                status = "frequent"
+                customer_status = "frequent"
 
             else:
-                status = "active"
+                customer_status = "active"
 
             total_spent_all += total_spent
             total_orders_all += orders_count
@@ -75,20 +99,23 @@ class UserService:
                     key=lambda x: x.created_at
                 )
 
-            customer_data.append({
-                "id": str(customer.id),
-                "name": customer.full_name,
-                "email": customer.email,
-                "phone": customer.phone,
-                "city": city,
-                "orders": orders_count,
-                "spent": total_spent,
-                "status": status,
-                "last_order": (
-                    last_order.created_at
-                    if last_order else None
-                )
-            })
+            customer_data.append(
+                {
+                    "id": str(customer.id),
+                    "name": customer.full_name,
+                    "email": customer.email,
+                    "phone": customer.phone,
+                    "city": city,
+                    "orders": orders_count,
+                    "spent": total_spent,
+                    "status": customer_status,
+                    "last_order": (
+                        last_order.created_at
+                        if last_order
+                        else None
+                    )
+                }
+            )
 
         avg_order_value = 0
 
@@ -127,8 +154,10 @@ class UserService:
             }
         }
 
-
     @staticmethod
+    @handle_service_exceptions(
+        "fetching customer"
+    )
     async def get_customer(
         db,
         customer_id
@@ -143,9 +172,14 @@ class UserService:
         )
 
         if not customer:
-            return None
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Customer not found"
+            )
 
-        orders_count = len(customer.orders)
+        orders_count = len(
+            customer.orders
+        )
 
         total_spent = sum(
             float(order.total_amount)
@@ -175,7 +209,8 @@ class UserService:
             "email": customer.email,
             "phone": customer.phone,
 
-            "joined_at": customer.created_at,
+            "joined_at":
+                customer.created_at,
 
             "address": {
                 "full_name":

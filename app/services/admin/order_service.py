@@ -1,17 +1,29 @@
+from fastapi import (
+    HTTPException,
+    status
+)
+
 from app.repositories.order_repository import (
     OrderRepository
+)
+
+from app.utils.exception_handler import (
+    handle_service_exceptions
 )
 
 
 class OrderService:
 
     @staticmethod
+    @handle_service_exceptions(
+        "fetching orders"
+    )
     async def get_orders(
         db,
         page: int,
         page_size: int,
         search=None,
-        status=None,
+        order_status=None,
         payment_status=None
     ):
 
@@ -20,11 +32,13 @@ class OrderService:
             page=page,
             page_size=page_size,
             search=search,
-            status=status,
+            status=order_status,
             payment_status=payment_status
         )
 
-        summary = await OrderRepository.get_order_summary(db)
+        summary = await OrderRepository.get_order_summary(
+            db
+        )
 
         return {
             "orders": [
@@ -96,6 +110,9 @@ class OrderService:
         }
 
     @staticmethod
+    @handle_service_exceptions(
+        "fetching order"
+    )
     async def get_order(
         db,
         order_id
@@ -107,7 +124,10 @@ class OrderService:
         )
 
         if not order:
-            return None
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Order not found"
+            )
 
         return {
 
@@ -201,7 +221,6 @@ class OrderService:
             },
 
             "items": [
-
                 {
                     "order_item_id": str(item.id),
 
@@ -225,7 +244,6 @@ class OrderService:
 
                     "total": float(item.total)
                 }
-
                 for item in order.items
             ],
 
@@ -243,7 +261,6 @@ class OrderService:
             },
 
             "payment": [
-
                 {
                     "payment_id": str(payment.id),
 
@@ -266,7 +283,6 @@ class OrderService:
 
                     "paid_at": payment.paid_at
                 }
-
                 for payment in order.payments
             ],
 
@@ -274,20 +290,27 @@ class OrderService:
 
             "delivered_at": order.delivered_at
         }
+
     @staticmethod
+    @handle_service_exceptions(
+        "updating order status"
+    )
     async def update_status(
         db,
         order_id,
-        status
+        order_status
     ):
 
         return await OrderRepository.update_order_status(
             db,
             order_id,
-            status
+            order_status
         )
 
     @staticmethod
+    @handle_service_exceptions(
+        "updating payment status"
+    )
     async def update_payment_status(
         db,
         order_id,
@@ -301,6 +324,9 @@ class OrderService:
         )
 
     @staticmethod
+    @handle_service_exceptions(
+        "cancelling order"
+    )
     async def cancel_order(
         db,
         order_id,

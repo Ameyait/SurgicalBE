@@ -1,11 +1,10 @@
 from uuid import UUID
 
 from fastapi import (
-    HTTPException,
-    status
+HTTPException,
+status
 )
 
-from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from slugify import slugify
@@ -13,17 +12,23 @@ from slugify import slugify
 from app.models.models import Category
 
 from app.repositories.category_repository import (
-    CategoryRepository
+CategoryRepository
 )
 
 from app.utils.category_master import (
-    CATEGORY_MASTER
+CATEGORY_MASTER
 )
 
+from app.utils.exception_handler import (
+handle_service_exceptions
+)
 
 class CategoryService:
-
+    
     @staticmethod
+    @handle_service_exceptions(
+        "creating category"
+    )
     async def create_category(
         db: AsyncSession,
         name: str,
@@ -32,79 +37,71 @@ class CategoryService:
         is_active: bool
     ):
 
-        try:
-
-            slug = slugify(name)
-
-            existing = await CategoryRepository.get_by_slug(
-                db,
-                slug
-            )
-
-            if existing:
-                raise HTTPException(
-                    status_code=status.HTTP_409_CONFLICT,
-                    detail="Category already exists"
-                )
-
-            selected_category = next(
-                (
-                    item
-                    for item in CATEGORY_MASTER
-                    if item["name"].lower() == name.lower()
-                ),
-                None
-            )
-
-            if not selected_category:
-                raise HTTPException(
-                    status_code=status.HTTP_400_BAD_REQUEST,
-                    detail="Invalid category name"
-                )
-
-            if parent_id:
-
-                parent = await CategoryRepository.get_by_id(
-                    db,
-                    parent_id
-                )
-
-                if not parent:
-                    raise HTTPException(
-                        status_code=status.HTTP_404_NOT_FOUND,
-                        detail="Parent category not found"
-                    )
-
-            category = Category(
-                name=name,
-                slug=slug,
-                icon=selected_category["icon"],
-                description=description,
-                parent_id=parent_id,
-                is_active=is_active
-            )
-
-            return await CategoryRepository.create(
-                db,
-                category
-            )
-
-        except HTTPException:
-            raise
-
-        except SQLAlchemyError as e:
+        if not name or not name.strip():
             raise HTTPException(
-                status_code=500,
-                detail=f"Database error: {str(e)}"
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Category name is required"
             )
 
-        except Exception as e:
+        slug = slugify(name)
+
+        existing = await CategoryRepository.get_by_slug(
+            db,
+            slug
+        )
+
+        if existing:
             raise HTTPException(
-                status_code=500,
-                detail=str(e)
+                status_code=status.HTTP_409_CONFLICT,
+                detail="Category already exists"
             )
+
+        selected_category = next(
+            (
+                item
+                for item in CATEGORY_MASTER
+                if item["name"].lower() == name.lower()
+            ),
+            None
+        )
+
+        if not selected_category:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Invalid category name"
+            )
+
+        if parent_id:
+
+            parent = await CategoryRepository.get_by_id(
+                db,
+                parent_id
+            )
+
+            if not parent:
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    detail="Parent category not found"
+                )
+
+        category = Category(
+            name=name.strip(),
+            slug=slug,
+            icon=selected_category["icon"],
+            description=description,
+            parent_id=parent_id,
+            is_active=is_active
+        )
+
+        return await CategoryRepository.create(
+            db,
+            category
+        )
 
     @staticmethod
+    @handle_service_exceptions(
+        "fetching category"
+    )
     async def get_category(
         db: AsyncSession,
         category_id: UUID
@@ -117,13 +114,16 @@ class CategoryService:
 
         if not category:
             raise HTTPException(
-                status_code=404,
+                status_code=status.HTTP_404_NOT_FOUND,
                 detail="Category not found"
             )
 
         return category
 
     @staticmethod
+    @handle_service_exceptions(
+        "fetching categories"
+    )
     async def get_categories(
         db: AsyncSession
     ):
@@ -133,117 +133,121 @@ class CategoryService:
         )
 
     @staticmethod
+    @handle_service_exceptions(
+        "updating category"
+    )
     async def update_category(
         db: AsyncSession,
         category_id: UUID,
         payload
     ):
 
-        try:
+        category = await CategoryRepository.get_by_id(
+            db,
+            category_id
+        )
 
-            category = await CategoryRepository.get_by_id(
-                db,
-                category_id
+        if not category:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Category not found"
             )
 
-            if not category:
+        update_data = payload.model_dump(
+            exclude_unset=True
+        )
+
+        if "name" in update_data:
+
+            if not update_data["name"].strip():
                 raise HTTPException(
-                    status_code=404,
-                    detail="Category not found"
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="Category name cannot be empty"
                 )
 
-            update_data = payload.model_dump(
-                exclude_unset=True
+            new_name = update_data["name"]
+
+            slug = slugify(
+                new_name
             )
 
-            if "name" in update_data:
-
-                new_name = update_data["name"]
-
-                slug = slugify(
-                    new_name
-                )
-
-                existing = await CategoryRepository.get_by_slug(
-                    db,
-                    slug
-                )
-
-                if (
-                    existing and
-                    existing.id != category.id
-                ):
-                    raise HTTPException(
-                        status_code=409,
-                        detail="Category name already exists"
-                    )
-
-                selected_category = next(
-                    (
-                        item
-                        for item in CATEGORY_MASTER
-                        if item["name"].lower()
-                        == new_name.lower()
-                    ),
-                    None
-                )
-
-                if not selected_category:
-                    raise HTTPException(
-                        status_code=400,
-                        detail="Invalid category name"
-                    )
-
-                category.name = new_name
-                category.slug = slug
-                category.icon = selected_category["icon"]
+            existing = await CategoryRepository.get_by_slug(
+                db,
+                slug
+            )
 
             if (
-                "parent_id" in update_data
-                and update_data["parent_id"]
+                existing and
+                existing.id != category.id
             ):
-
-                parent = await CategoryRepository.get_by_id(
-                    db,
-                    update_data["parent_id"]
+                raise HTTPException(
+                    status_code=status.HTTP_409_CONFLICT,
+                    detail="Category name already exists"
                 )
 
-                if not parent:
-                    raise HTTPException(
-                        status_code=404,
-                        detail="Parent category not found"
-                    )
+            selected_category = next(
+                (
+                    item
+                    for item in CATEGORY_MASTER
+                    if item["name"].lower()
+                    == new_name.lower()
+                ),
+                None
+            )
 
-            if "description" in update_data:
-                category.description = update_data["description"]
+            if not selected_category:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="Invalid category name"
+                )
 
-            if "parent_id" in update_data:
-                category.parent_id = update_data["parent_id"]
+            category.name = new_name.strip()
+            category.slug = slug
+            category.icon = selected_category["icon"]
 
-            if "is_active" in update_data:
-                category.is_active = update_data["is_active"]
+        if (
+            "parent_id" in update_data
+            and update_data["parent_id"] == category_id
+        ):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Category cannot be its own parent"
+            )
 
-            return await CategoryRepository.update(
+        if (
+            "parent_id" in update_data
+            and update_data["parent_id"]
+        ):
+
+            parent = await CategoryRepository.get_by_id(
                 db,
-                category
+                update_data["parent_id"]
             )
 
-        except HTTPException:
-            raise
+            if not parent:
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    detail="Parent category not found"
+                )
 
-        except SQLAlchemyError as e:
-            raise HTTPException(
-                status_code=500,
-                detail=f"Database error: {str(e)}"
-            )
+        if "description" in update_data:
+            category.description = update_data["description"]
 
-        except Exception as e:
-            raise HTTPException(
-                status_code=500,
-                detail=str(e)
-            )
+        if "parent_id" in update_data:
+            category.parent_id = update_data["parent_id"]
+
+        if "is_active" in update_data:
+            category.is_active = update_data["is_active"]
+
+        return await CategoryRepository.update(
+            db,
+            category
+        )
 
     @staticmethod
+    @handle_service_exceptions(
+        "deleting category"
+    )
     async def delete_category(
         db: AsyncSession,
         category_id: UUID
@@ -256,8 +260,21 @@ class CategoryService:
 
         if not category:
             raise HTTPException(
-                status_code=404,
+                status_code=status.HTTP_404_NOT_FOUND,
                 detail="Category not found"
+            )
+
+        child_categories = (
+            await CategoryRepository.get_children(
+                db,
+                category_id
+            )
+        )
+
+        if child_categories:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail="Cannot delete category with subcategories"
             )
 
         await CategoryRepository.delete(
